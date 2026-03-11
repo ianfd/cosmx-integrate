@@ -74,6 +74,7 @@ def _generate_overview_coordinates(adata, sample_key: str = "sample",
     for i, s in enumerate(samples):
         mask, coords = sample_coords[s]
         mask_arr = mask.values if hasattr(mask, "values") else mask
+        coords = coords.astype(np.float64)
         if len(coords):
             coords -= coords.min(axis=0)
         coords[:, 0] += (i % ncols) * tile_w
