@@ -5,11 +5,10 @@ channels:
 dependencies:
   - python==3.12.13
   - pandas[version=">=2.2,<3"]
-  - protobuf<=3.20
   - conda-forge::scanpy
   - conda-forge::squidpy
-  - conda-forge::scvi-tools==1.4.2
   - pytorch::pytorch
   - pytorch::pytorch-cuda=12.4
   - pip:
+    - scvi-tools==1.4.2
     - latch==2.69.1

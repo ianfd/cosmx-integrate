@@ -57,7 +57,7 @@ metadata = LatchMetadata(
 
 @small_task
 def prep_integration_args(
-    sample_h5ads: List[LatchFile],
+    sample_h5ads: List[LatchFile], #does this make a download here?
     n_latent: int,
     n_layers: int,
     max_epochs: int,

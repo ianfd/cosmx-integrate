@@ -23,7 +23,6 @@ class IntegrationInput:
     output_dir: LatchDir
 
 
-
 def _make_obs_names_unique(h5ad_path: str, sample_name: str) -> None:
     import anndata as ad
 
@@ -65,8 +64,8 @@ def _generate_overview_coordinates(adata, sample_key: str = "sample",
         coords = _get_coords(adata[mask])
         sample_coords[s] = (mask, coords)
         if len(coords):
-            max_w = max(max_w, coords[:, 0].ptp())
-            max_h = max(max_h, coords[:, 1].ptp())
+            max_w = max(max_w, coords[:, 0].max() - coords[:, 0].min())
+            max_h = max(max_h, coords[:, 1].max() - coords[:, 1].min())
 
     tile_w = max_w * padding_factor
     tile_h = max_h * padding_factor
@@ -140,40 +139,38 @@ def _compute_integration_metrics(
     conn = adata_sub.obsp["connectivities"]
 
     max_entropy = np.log(n_batches)
-    batch_codes = pd.Categorical(batch_labels).codes
-    n_cats = n_batches
+    batch_cat = pd.Categorical(batch_labels)
+    batch_codes = batch_cat.codes.copy()
+    n_cats = len(batch_cat.categories)
 
-    entropies = np.zeros(adata_sub.n_obs)
-    for i in range(adata_sub.n_obs):
-        row = conn[i]
-        # Get neighbor indices
-        if hasattr(row, "indices"):
-            nbrs = row.indices
-        else:
-            nbrs = np.nonzero(row)[0]
-        if len(nbrs) == 0:
-            continue
-        nbr_batches = batch_codes[nbrs]
-        counts = np.bincount(nbr_batches, minlength=n_cats).astype(float)
-        counts = counts[counts > 0]
-        probs = counts / counts.sum()
-        entropies[i] = -np.sum(probs * np.log(probs))
+    # Vectorised: build a (n_cells × n_cats) count matrix from the kNN graph
+    from scipy.sparse import csr_matrix as _csr
+    rows, cols = conn.nonzero()
+    nbr_batch = batch_codes[cols]
+    # Sparse matrix: cell i has count of neighbors in batch b at (i, b)
+    batch_counts = _csr(
+        (np.ones(len(rows), dtype=np.float64), (rows, nbr_batch)),
+        shape=(adata_sub.n_obs, n_cats),
+    ).toarray()
+    # Shannon entropy per cell
+    row_sums = batch_counts.sum(axis=1, keepdims=True)
+    row_sums[row_sums == 0] = 1  # avoid division by zero for isolated cells
+    probs = batch_counts / row_sums
+    with np.errstate(divide="ignore", invalid="ignore"):
+        log_probs = np.where(probs > 0, np.log(probs), 0.0)
+    entropies = -np.sum(probs * log_probs, axis=1)
 
     metrics["entropy_of_batch_mixing"] = round(float(np.mean(entropies) / max_entropy), 4)
 
     logger.info("  Computing kNN batch purity …")
-    purities = np.zeros(adata_sub.n_obs)
-    for i in range(adata_sub.n_obs):
-        row = conn[i]
-        if hasattr(row, "indices"):
-            nbrs = row.indices
-        else:
-            nbrs = np.nonzero(row)[0]
-        if len(nbrs) == 0:
-            purities[i] = 1.0
-            continue
-        same_batch = (batch_codes[nbrs] == batch_codes[i]).sum()
-        purities[i] = same_batch / len(nbrs)
+    own_batch = batch_codes  # shape (n_cells,)
+    # Count how many neighbors share the same batch
+    same_batch_counts = np.array([
+        batch_counts[i, own_batch[i]] for i in range(adata_sub.n_obs)
+    ], dtype=np.float64)
+    n_neighbors_per_cell = np.diff(conn.indptr)  # actual neighbor count per row
+    n_neighbors_per_cell[n_neighbors_per_cell == 0] = 1  # avoid div-by-zero
+    purities = same_batch_counts / n_neighbors_per_cell
 
     metrics["knn_batch_purity"] = round(float(np.mean(purities)), 4)
     metrics["knn_batch_mixing"] = round(1.0 - float(np.mean(purities)), 4)
@@ -202,9 +199,10 @@ def _compute_integration_metrics(
 
 @large_gpu_task
 def scvi_integration_task(input: IntegrationInput) -> LatchOutputDir:
+    import scanpy as sc
     import anndata as ad
     ad.settings.allow_write_nullable_strings = True
-    import scanpy as sc
+    
     import scvi
     import numpy as np
     import pandas as pd
@@ -236,9 +234,6 @@ def scvi_integration_task(input: IntegrationInput) -> LatchOutputDir:
     merged_path = str(work / "merged.h5ad")
 
     if is_multisample:
-        # _make_obs_names_unique already wrote obs["sample"] into each file,
-        # so we don't pass label= here to avoid conflict.  The column is
-        # already present and consistent with the dict keys.
         ad.experimental.concat_on_disk(
             in_files=local_paths,
             out_file=merged_path,

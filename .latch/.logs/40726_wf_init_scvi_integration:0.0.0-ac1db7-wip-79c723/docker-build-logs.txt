@@ -1,0 +1,54 @@
+Step 1/18 : from 812206152185.dkr.ecr.us-west-2.amazonaws.com/latch-base-cuda:cb01-main
+ ---> 151c5e3310c5
+Step 2/18 : workdir /tmp/docker-build/work/
+ ---> Using cache
+ ---> 644674fe9d43
+Step 3/18 : shell [     "/usr/bin/env", "bash",     "-o", "errexit",     "-o", "pipefail",     "-o", "nounset",     "-o", "verbose",     "-o", "errtrace",     "-O", "inherit_errexit",     "-O", "shift_verbose",     "-c" ]
+ ---> Using cache
+ ---> c48095497357
+Step 4/18 : env TZ='Etc/UTC'
+ ---> Using cache
+ ---> 8e912508a1ce
+Step 5/18 : env LANG='en_US.UTF-8'
+ ---> Using cache
+ ---> 323b1f4dfb8a
+Step 6/18 : arg DEBIAN_FRONTEND=noninteractive
+ ---> Using cache
+ ---> 36df8e3a359f
+Step 7/18 : run pip install latch==2.69.1
+ ---> Using cache
+ ---> 801559f3752b
+Step 8/18 : run mkdir /opt/latch
+ ---> Using cache
+ ---> a407f040f06f
+Step 9/18 : run apt-get update --yes &&     apt-get install --yes curl git &&     curl         --location         --fail         --remote-name         https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh &&     `# Docs for -b and -p flags: https://docs.anaconda.com/anaconda/install/silent-mode/#linux-macos`     bash Miniforge3-Linux-x86_64.sh -b -p /opt/conda -u &&     rm Miniforge3-Linux-x86_64.sh
+ ---> Using cache
+ ---> e59ab726681f
+Step 10/18 : env PATH=/opt/conda/bin:$PATH
+ ---> Using cache
+ ---> f22b4458778a
+Step 11/18 : run conda config --set auto_activate_base false
+ ---> Using cache
+ ---> f37bd21fce69
+Step 12/18 : copy environment.yml /opt/latch/environment.yaml
+ ---> Using cache
+ ---> 47c944116860
+Step 13/18 : run mamba env create     --file /opt/latch/environment.yaml     --name environment
+ ---> Using cache
+ ---> b1744bcbcfb4
+Step 14/18 : env PATH=/opt/conda/envs/environment/bin:$PATH
+ ---> Using cache
+ ---> 01423d19ce9e
+Step 15/18 : copy . /root/
+ ---> 1506c0d2409f
+Step 16/18 : arg tag
+ ---> Running in 53877bfb112b
+ ---> 695169928214
+Step 17/18 : env FLYTE_INTERNAL_IMAGE $tag
+ ---> Running in 659a6bdcd527
+ ---> 2bdd6a699cf4
+Step 18/18 : workdir /root
+ ---> Running in a430f82cbd9f
+ ---> fcef5e470154
+Successfully built fcef5e470154
+Successfully tagged 812206152185.dkr.ecr.us-west-2.amazonaws.com/40726_wf_init_scvi_integration:0.0.0-ac1db7-wip-79c723
